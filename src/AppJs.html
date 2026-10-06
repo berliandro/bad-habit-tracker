@@ -63,7 +63,13 @@
 
   function renderDashboard(d){
     $('mCurrent').textContent = (d.currentIntervalDays===null||d.currentIntervalDays===undefined) ? '—' : String(Math.round(Number(d.currentIntervalDays)));
-    $('mTarget').textContent = (d.nextTargetDays===null||d.nextTargetDays===undefined||d.nextTargetDays==='') ? '—' : fmtDays(d.nextTargetDays);
+    // Editorial split: dominant number, receding unit. mTarget keeps its contract ID.
+    var mt = $('mTarget');
+    if(d.nextTargetDays===null||d.nextTargetDays===undefined||d.nextTargetDays===''){ mt.textContent = '—'; }
+    else{
+      var tn = Math.round(Number(d.nextTargetDays));
+      mt.innerHTML = esc(String(tn))+'<span class="unit">'+(tn===1?'day':'days')+'</span>';
+    }
     var remainEl = $('mRemain');
     if(d.daysRemaining===null||d.daysRemaining===undefined){ remainEl.textContent = '—'; }
     else if(Number(d.daysRemaining)<=0){ remainEl.textContent = 'Due — be gentle with yourself'; }
@@ -78,7 +84,14 @@
     if(d.stats && d.stats.trend){ tl.textContent = ' · '+String(d.stats.trend).toLowerCase(); }
     else { tl.textContent=''; }
     var g = d.goal;
-    $('mGoal').textContent = !g ? 'Not set' : (g.goalMode==='STOP' ? 'Stop' : (g.targetOccurrences+' / '+g.targetPeriodDays+'d'));
+    // Mode tag only: the numeric goal already lives in #goalLine, so the chip
+    // names the mode instead of repeating the numbers. Hidden when redundant.
+    var chip = $('mGoal');
+    if(g && g.goalMode!=='STOP' && g.targetOccurrences && g.targetPeriodDays){
+      chip.style.display=''; chip.textContent='Reduce';
+    } else {
+      chip.style.display='none'; chip.textContent='';
+    }
     $('aiInsight').textContent = d.aiInsight || 'Log your first occurrence and an insight will appear here.';
     $('aiMeta').textContent = d.aiModel ? ('Model · '+d.aiModel) : '';
     var s = d.stats || {};
