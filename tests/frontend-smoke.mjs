@@ -117,7 +117,11 @@ async function runWithDashboard(dashboard) {
   const feed = t('timeline').children;
   ok('smoke:feed-count', feed.length === 2, String(feed.length));
   const firstTitle = feed[0].children[0].children[0].innerHTML;
-  ok('smoke:feed-humanized', firstTitle.includes('Today') && firstTitle.includes('2026-10-06'), firstTitle);
+  ok('smoke:feed-humanized', firstTitle.includes('Today') && firstTitle.includes('1 occurrence'), firstTitle);
+  ok('smoke:feed-no-iso-dup', !firstTitle.includes('2026-10-06'), firstTitle);
+  ok('smoke:feed-date-in-title-attr', feed[0].title === '2026-10-06', JSON.stringify(feed[0].title));
+  ok('smoke:avg-trimmed', t('statsKv').children[1].children[1].innerHTML === '6 days',
+    JSON.stringify(t('statsKv').children[1].children[1].innerHTML));
   ok('smoke:feed-interval', feed[0].children[0].children[1].textContent === '6 days since previous');
   ok('smoke:feed-start-label', feed[1].children[0].children[1].textContent === 'Start of interval');
   ok('smoke:ai-meta-secondary', t('aiMeta').textContent === 'Model · stub-model', t('aiMeta').textContent);
@@ -134,6 +138,8 @@ async function runWithDashboard(dashboard) {
   }));
   const t = (id) => els.get(id);
   ok('smoke:empty-target-dash', t('mTarget').textContent === '—', JSON.stringify(t('mTarget').textContent));
+  ok('smoke:empty-avg-dash', t('statsKv').children[1].children[1].innerHTML === '—',
+    JSON.stringify(t('statsKv').children[1].children[1].innerHTML));
   const feed = t('timeline').children;
   ok('smoke:empty-feed', feed.length === 1 && feed[0].className === 'empty', String(feed.length));
 }
@@ -148,5 +154,13 @@ async function runWithDashboard(dashboard) {
   ok('smoke:stop-chip-hidden', t('mGoal').style.display === 'none', JSON.stringify(t('mGoal').style.display));
 }
 
-console.log(`\nTOTAL pass=${pass} fail=${fail}`);
+// Static guard for the stuck-indicator bug: author display rules must never
+// override the hidden attribute (caught via pixel render, locked here).
+{
+  const css = readFileSync(path.join(SRC, 'Styles.html'), 'utf8');
+  const guarded = css.includes('[hidden]');
+  if (guarded) { pass++; console.log('PASS smoke:hidden-guard'); }
+  else { fail++; console.log('FAIL smoke:hidden-guard — Styles.html must guard [hidden]'); }
+  console.log(`\nTOTAL pass=${pass} fail=${fail}`);
+}
 process.exit(fail ? 1 : 0);

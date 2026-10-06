@@ -12,7 +12,12 @@
   });}
 
   function fmtDays(v){ if(v===null||v===undefined||v===''||!isFinite(Number(v))) return '—'; var n=Math.round(Number(v)); return n+' day'+(n===1?'':'s'); }
-  function fmtNum(v){ if(v===null||v===undefined||v===''||!isFinite(Number(v))) return '—'; return Number(v).toFixed(2); }
+  function fmtAvg(v){
+    if(v===null||v===undefined||v===''||!isFinite(Number(v))) return '—';
+    var n=Number(v);
+    if(Math.round(n)===n){ var i=Math.round(n); return i+' day'+(i===1?'':'s'); }
+    return n.toFixed(1)+' days';
+  }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
   // Deterministic YYYY-MM-DD helpers. Never locale-parse; never overwrite server dates.
@@ -99,7 +104,7 @@
     kv.innerHTML = '';
     var rows = [
       ['Latest interval', fmtDays(s.latestInterval)],
-      ['Average', fmtNum(s.averageInterval)+' days'],
+      ['Average', fmtAvg(s.averageInterval)],
       ['Median', fmtDays(s.medianInterval)],
       ['Longest', fmtDays(s.longestInterval)],
       ['Current streak', fmtDays(s.currentStreakDays)],
@@ -117,9 +122,12 @@
     var hist = d.recentHistory||[];
     hist.forEach(function(h){
       var li=document.createElement('li');
+      li.title = h.eventDate;
       var body=document.createElement('div'); body.className='feed-body';
       var title=document.createElement('p'); title.className='feed-date';
-      title.innerHTML = esc(humanize(h.eventDate, d.today||''))+'<span class="count">'+esc(String(h.count))+'× · '+esc(h.eventDate)+'</span>';
+      var n=Number(h.count);
+      var countLabel = (n===1) ? '1 occurrence' : (esc(String(h.count))+' occurrences');
+      title.innerHTML = esc(humanize(h.eventDate, d.today||''))+'<span class="count">'+countLabel+'</span>';
       var sub=document.createElement('p'); sub.className='feed-sub';
       sub.textContent = (h.interval===null||h.interval===undefined) ? 'Start of interval' : (String(h.interval)+' days since previous');
       body.appendChild(title); body.appendChild(sub);
