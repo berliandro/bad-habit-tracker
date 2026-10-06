@@ -10,7 +10,7 @@ Polished personal web application for gradually reducing the frequency of a beha
 - Occurrence = behavioral data, not moral failure.
 - Two goal modes: **Reduce Frequency** (user-defined N times / P days) and **Stop Completely** (progressively longer abstinence intervals).
 - Gemini determines the next minimum abstinence interval from recent history + target; backend computes the calendar date deterministically.
-- Google Sheets is the privacy-preserving database; Apps Script is the secure backend; single-page glass/aurora frontend is the dashboard.
+- Google Sheets is the privacy-preserving database; Apps Script is the secure backend; single-page minimalist material frontend is the dashboard.
 
 ## Habit-Blind Privacy Architecture
 
@@ -65,7 +65,7 @@ The spreadsheet already exists. `initializeApp()` uses `SpreadsheetApp.getActive
 
 ## Missing-Key Modal
 
-`Index.html#keyModal` shares the aurora/glass theme. Saves via `saveGeminiApiKey()` server-side. No endpoint returns the key.
+`Index.html#keyModal` shares the minimalist material theme. Saves via `saveGeminiApiKey()` server-side. No endpoint returns the key.
 
 ## Settings → Edit API Key
 
@@ -125,7 +125,7 @@ Remote: `https://github.com/berliandro/bad-habit-tracker.git`, branch `main`. Be
 
 ## Deployment
 
-Apps Script Web App deployment is user-side (requires Google auth). After `clasp push`, open script.google.com → Deploy → New deployment → Web app. Frontend is responsive/mobile-first, keyboard navigable, ARIA-labeled, `prefers-reduced-motion` aware, aurora = blurred transformed gradients (low CPU).
+Apps Script Web App deployment is user-side (requires Google auth). After `clasp push`, open script.google.com → Deploy → New deployment → Web app. Frontend is responsive/mobile-first, keyboard navigable, ARIA-labeled, `prefers-reduced-motion` aware, with a light minimalist material theme (white surfaces, soft shadows, single teal accent).
 
 ## Testing
 
