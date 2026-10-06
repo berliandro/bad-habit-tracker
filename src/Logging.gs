@@ -31,6 +31,38 @@ function findPredecessorDate_(sortedEvents, newEventDate) {
   return pred;
 }
 
+/**
+ * Select the row driving dashboard target widgets.
+ * Prefers the chronologically latest event that has a numeric target, so a
+ * historical backfill inserted after newer rows cannot hijack the dashboard.
+ * Falls back to the last inserted row with a numeric target, else null.
+ * Pure over row objects -> testable without SpreadsheetApp.
+ */
+function selectDashboardTargetRow_(rows) {
+  if (!rows || !rows.length) return null;
+  var best = null;
+  var bestEventDate = null;
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var daysRaw = r['Final Target Days'];
+    if (daysRaw === '' || daysRaw === null || daysRaw === undefined) continue;
+    if (!isFinite(Number(daysRaw))) continue;
+    var evDate = normalizeSheetDate_(r['Event Date']);
+    if (!evDate) continue;
+    if (best === null || evDate > bestEventDate) {
+      best = r;
+      bestEventDate = evDate;
+    }
+  }
+  if (best) return best;
+  for (var j = rows.length - 1; j >= 0; j--) {
+    var rj = rows[j];
+    var dj = rj['Final Target Days'];
+    if (dj !== '' && dj !== null && dj !== undefined && isFinite(Number(dj))) return rj;
+  }
+  return null;
+}
+
 function logOccurrence(naturalInput, eventDateOverride) {
   try {
     var input = String(naturalInput || '').slice(0, 500);
@@ -156,11 +188,15 @@ function getDashboardDataInternal_() {
   var stats = buildHistoryStats_(data.events, goal || { goalMode: GOAL_MODE_REDUCE });
   var rows = data.rows;
 
-  var lastRow = rows.length ? rows[rows.length - 1] : null;
-  var nextTargetDays = lastRow && lastRow['Final Target Days'] !== '' ? Number(lastRow['Final Target Days']) : null;
-  var nextTargetDate = lastRow && lastRow['Next Target Date'] ? String(lastRow['Next Target Date']).slice(0, 10) : null;
-  var aiReason = lastRow && lastRow['AI Reason'] ? String(lastRow['AI Reason']) : '';
-  var aiModel = lastRow && lastRow['Gemini Model Used'] ? String(lastRow['Gemini Model Used']) : '';
+  var targetRow = selectDashboardTargetRow_(rows);
+  var nextTargetDays = null;
+  if (targetRow && targetRow['Final Target Days'] !== '' && targetRow['Final Target Days'] !== null && targetRow['Final Target Days'] !== undefined) {
+    var parsedDays = Number(targetRow['Final Target Days']);
+    if (isFinite(parsedDays)) nextTargetDays = parsedDays;
+  }
+  var nextTargetDate = targetRow ? normalizeSheetDate_(targetRow['Next Target Date']) : null;
+  var aiReason = targetRow && targetRow['AI Reason'] ? String(targetRow['AI Reason']) : '';
+  var aiModel = targetRow && targetRow['Gemini Model Used'] ? String(targetRow['Gemini Model Used']) : '';
 
   var todayStr = todayDateString_();
   var daysRemaining = null;

@@ -263,6 +263,35 @@ function errResponse_(code, message) {
   return { success: false, error: { code: String(code || 'UNKNOWN'), message: String(message || 'Unknown error') } };
 }
 
+/**
+ * Normalize any spreadsheet date cell to canonical YYYY-MM-DD.
+ * Sheets often auto-converts ISO strings to Date objects on read via getValues().
+ * The old dashboard path used String(dateCell).slice(0,10) which yields "Tue Oct 06"
+ * for Date objects -> invalid -> daysRemaining null -> UI "—".
+ * This helper handles Date objects (via app timezone), ISO strings, and ISO datetime
+ * prefixes, returning null only when no usable date exists. Never uses locale parsing.
+ */
+function normalizeSheetDate_(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    if (isNaN(v)) return null;
+    try {
+      return Utilities.formatDate(v, getAppTimeZone_(), 'yyyy-MM-dd');
+    } catch (e) {
+      try {
+        return formatDateUtc_(new Date(Date.UTC(v.getFullYear(), v.getMonth(), v.getDate())));
+      } catch (e2) {
+        return null;
+      }
+    }
+  }
+  var s = String(v).trim();
+  if (isValidDateString_(s)) return s;
+  var prefix = s.slice(0, 10);
+  if (isValidDateString_(prefix)) return prefix;
+  return null;
+}
+
 function sanitizeForClient_(row) {
   // Row object already contains only privacy-preserving fields.
   return row;
