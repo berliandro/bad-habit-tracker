@@ -1,0 +1,168 @@
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var state = { status:null, dashboard:null };
+
+  function run(fn, args){ return new Promise(function(resolve, reject){
+    if(!window.google || !google.script || !google.script.run){ reject(new Error('Apps Script bridge unavailable')); return; }
+    var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function(e){ reject(new Error((e && e.message) || 'Server error')); });
+    (r[fn]).apply(r, args || []);
+  });}
+
+  function fmtDays(v){ if(v===null||v===undefined||v===''||!isFinite(Number(v))) return '—'; var n=Math.round(Number(v)); return n+' day'+(n===1?'':'s'); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function setLoading(on, label){
+    var el = $('loading'); if(!el) return;
+    el.hidden = !on; if(on && label) $('loadingLabel').textContent = label;
+  }
+
+  async function refreshAll(){
+    try{
+      var st = await run('getAppStatus', []);
+      if(!st.success) throw new Error(st.error.message);
+      state.status = st.data;
+      $('keyState').textContent = state.status.geminiConfigured ? 'Gemini API key configured' : 'Gemini API key not configured';
+      if(!state.status.geminiConfigured){ openModal('keyModal'); }
+      else if(!state.status.goalConfigured){ openModal('goalModal'); }
+      var dash = await run('getDashboardData', []);
+      if(dash.success){ state.dashboard = dash.data; renderDashboard(dash.data); }
+      renderGoalSummary();
+    }catch(e){ showError(String(e.message||e)); }
+  }
+
+  function renderGoalSummary(){
+    var g = state.status && state.status.goal;
+    var el = $('goalLine');
+    if(!g){ el.textContent = 'Goal: not set'; return; }
+    if(g.goalMode==='STOP'){ el.textContent = 'Goal: Stop'; }
+    else{ el.textContent = 'Target: '+g.targetOccurrences+' time'+(Number(g.targetOccurrences)===1?'':'s')+' / '+g.targetPeriodDays+' days'; }
+  }
+
+  function renderDashboard(d){
+    $('mCurrent').textContent = d.currentIntervalDays===null||d.currentIntervalDays===undefined ? '—' : fmtDays(d.currentIntervalDays);
+    $('mTarget').textContent = d.nextTargetDays===null||d.nextTargetDays===undefined||d.nextTargetDays==='' ? '—' : fmtDays(d.nextTargetDays);
+    $('mRemain').textContent = (d.daysRemaining===null||d.daysRemaining===undefined) ? '—' : (Number(d.daysRemaining)<=0 ? 'Due — be gentle with yourself' : fmtDays(d.daysRemaining));
+    var g = d.goal;
+    $('mGoal').textContent = !g ? 'Not set' : (g.goalMode==='STOP' ? 'Stop' : (g.targetOccurrences+' / '+g.targetPeriodDays+'d'));
+    $('aiInsight').textContent = d.aiInsight || 'Log your first occurrence to generate insight.';
+    $('aiMeta').textContent = d.aiModel ? ('Model: '+d.aiModel) : '';
+    var s = d.stats || {};
+    var kv = $('statsKv');
+    kv.innerHTML = '';
+    var rows = [
+      ['Latest interval', fmtDays(s.latestInterval)],
+      ['Average interval', s.averageInterval===null||s.averageInterval===undefined?'—':(Number(s.averageInterval).toFixed(2)+' days')],
+      ['Median interval', fmtDays(s.medianInterval)],
+      ['Longest interval', fmtDays(s.longestInterval)],
+      ['Current streak', fmtDays(s.currentStreakDays)],
+      ['Last 7 days', (s.recentFrequency7d==null?'—':s.recentFrequency7d+' occurrences')],
+      ['Trend', esc(s.trend||'—')],
+      ['Consistency', esc(s.consistency||'—')]
+    ];
+    rows.forEach(function(r){ var dt=document.createElement('dt'); dt.textContent=r[0]; var dd=document.createElement('dd'); dd.innerHTML=r[1]; kv.appendChild(dt); kv.appendChild(dd); });
+    var tl = $('timeline'); tl.innerHTML='';
+    (d.recentHistory||[]).forEach(function(h){
+      var li=document.createElement('li');
+      var left=document.createElement('span'); left.innerHTML = '<strong>'+esc(h.eventDate)+'</strong> <span class="pill">'+esc(String(h.count))+'×</span>'+(h.interval!==null&&h.interval!==undefined? ' <span class="pill">+'+esc(String(h.interval))+'d</span>':'');
+      var btn=document.createElement('button'); btn.className='btn small ghost'; btn.textContent='Delete'; btn.setAttribute('aria-label','Delete entry '+h.eventDate);
+      btn.onclick=function(){ delEntry(h.logId); };
+      li.appendChild(left); li.appendChild(btn); tl.appendChild(li);
+    });
+    if(!(d.recentHistory||[]).length){ var li0=document.createElement('li'); li0.textContent='No occurrences yet. Your timeline will appear here.'; tl.appendChild(li0); }
+    if(d.warning){ showWarn(d.warning); }
+    if(d.aiAvailable===false){ showWarn('Occurrence saved. AI analysis is temporarily unavailable ('+esc(d.aiErrorCode||'AI_UNAVAILABLE')+').'); }
+  }
+
+  async function delEntry(id){
+    if(!confirm('Delete this entry?')) return;
+    setLoading(true,'Updating your timeline…');
+    try{ var r=await run('deleteEntry',[id]); if(!r.success) throw new Error(r.error.message); await refreshAll(); }
+    catch(e){ showError(String(e.message||e)); } finally{ setLoading(false); }
+  }
+
+  function showError(m){ var n=$('alert'); n.className='notice err'; n.hidden=false; n.textContent=m; }
+  function showWarn(m){ var n=$('alert'); n.className='notice warn'; n.hidden=false; n.textContent=m; }
+  function clearAlert(){ var n=$('alert'); n.hidden=true; }
+
+  function openModal(id){ var d=$(id); if(d && typeof d.showModal==='function'){ if(!d.open) d.showModal(); } }
+  function closeModal(id){ var d=$(id); if(d && d.open) d.close(); }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    $('logBtn').addEventListener('click', async function(){
+      clearAlert();
+      var v = $('logInput').value.trim();
+      if(!v){ showError('Type something generic like “I did it today”.'); $('logInput').focus(); return; }
+      var btn=$('logBtn'); btn.disabled=true; setLoading(true,'Recording…');
+      try{
+        // Staged loading labels without fake percentages.
+        setTimeout(function(){ if(btn.disabled) $('loadingLabel').textContent='Updating your timeline…'; }, 700);
+        setTimeout(function(){ if(btn.disabled) $('loadingLabel').textContent='Calculating your next target…'; }, 1600);
+        var res = await run('logOccurrence',[v]);
+        if(!res.success) throw new Error(res.error.code+': '+res.error.message);
+        state.dashboard = res.data; renderDashboard(res.data);
+        $('logInput').value='';
+        var nt = res.data && res.data.lastRecommendation;
+        if(nt){ showWarn('Saved. Next target: '+nt.finalDays+' days ('+nt.nextTargetDate+').'); }
+      }catch(e){ showError(String(e.message||e)); }
+      finally{ btn.disabled=false; setLoading(false); }
+    });
+    $('settingsBtn').addEventListener('click', function(){ openModal('settingsModal'); syncSettingsForm(); });
+    $('saveKeyBtn').addEventListener('click', async function(){
+      var k=$('keyInput').value.trim(); if(k.length<10){ $('keyMsg').textContent='Key looks too short.'; return; }
+      $('saveKeyBtn').disabled=true; $('keyMsg').textContent='Saving…';
+      try{ var r=await run('saveGeminiApiKey',[k]); if(!r.success) throw new Error(r.error.message);
+        $('keyMsg').textContent='Saved.'; $('keyInput').value=''; closeModal('keyModal'); await refreshAll();
+      }catch(e){ $('keyMsg').textContent='Error: '+String(e.message||e); }
+      finally{ $('saveKeyBtn').disabled=false; }
+    });
+    $('saveGoalBtn').addEventListener('click', async function(){
+      var mode = document.querySelector('input[name=goalMode]:checked') ? document.querySelector('input[name=goalMode]:checked').value : 'REDUCE_FREQUENCY';
+      var c = Number($('freqCount').value), p = Number($('freqPeriod').value);
+      try{
+        var r = mode==='STOP' ? await run('saveGoalSettings',['STOP',null,null]) : await run('saveGoalSettings',['REDUCE_FREQUENCY',c,p]);
+        if(!r.success) throw new Error(r.error.message);
+        closeModal('goalModal'); await refreshAll();
+      }catch(e){ $('goalMsg').textContent='Error: '+String(e.message||e); }
+    });
+    document.querySelectorAll('input[name=goalMode]').forEach(function(r){ r.addEventListener('change', syncFreqVisibility); });
+    $('saveSettingsGoalBtn').addEventListener('click', async function(){
+      var mode = document.querySelector('input[name=sGoalMode]:checked') ? document.querySelector('input[name=sGoalMode]:checked').value : 'REDUCE_FREQUENCY';
+      try{
+        var r = mode==='STOP' ? await run('saveGoalSettings',['STOP',null,null])
+          : await run('saveGoalSettings',['REDUCE_FREQUENCY', Number($('sFreqCount').value), Number($('sFreqPeriod').value)]);
+        if(!r.success) throw new Error(r.error.message);
+        $('settingsMsg').textContent='Goal saved.'; await refreshAll();
+      }catch(e){ $('settingsMsg').textContent='Error: '+String(e.message||e); }
+    });
+    $('saveSettingsKeyBtn').addEventListener('click', async function(){
+      var k=$('settingsKeyInput').value.trim(); if(k.length<10){ $('settingsMsg').textContent='Key looks too short.'; return; }
+      try{ var r=await run('saveGeminiApiKey',[k]); if(!r.success) throw new Error(r.error.message);
+        $('settingsMsg').textContent='API key updated.'; $('settingsKeyInput').value=''; await refreshAll();
+      }catch(e){ $('settingsMsg').textContent='Error: '+String(e.message||e); }
+    });
+    $('undoBtn').addEventListener('click', async function(){
+      if(!confirm('Undo the most recent entry?')) return;
+      setLoading(true,'Updating your timeline…');
+      try{ var r=await run('undoLastEntry',[]); if(!r.success) throw new Error(r.error.message); await refreshAll(); }
+      catch(e){ showError(String(e.message||e)); } finally{ setLoading(false); }
+    });
+    refreshAll();
+  });
+
+  function syncFreqVisibility(){
+    var mode = document.querySelector('input[name=goalMode]:checked');
+    $('freqRow').style.display = (!mode || mode.value==='STOP') ? 'none' : '';
+  }
+  function syncSettingsForm(){
+    var g = state.status && state.status.goal;
+    if(!g) return;
+    var radios = document.querySelectorAll('input[name=sGoalMode]');
+    radios.forEach(function(r){ r.checked = (r.value===(g.goalMode==='STOP'?'STOP':'REDUCE_FREQUENCY')); });
+    if(g.targetOccurrences) $('sFreqCount').value = g.targetOccurrences;
+    if(g.targetPeriodDays) $('sFreqPeriod').value = g.targetPeriodDays;
+    $('settingsMsg').textContent='';
+  }
+})();
+</script>
