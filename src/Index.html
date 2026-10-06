@@ -2,120 +2,128 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <base target="_top" />
   <title><?= appName ?></title>
   <?!= include('Styles'); ?>
 </head>
 <body>
-  <div class="wrap">
-    <header class="top">
-      <div class="brand">
-        <div class="mark" aria-hidden="true"></div>
+  <div class="aurora" aria-hidden="true"><span class="b1"></span><span class="b2"></span></div>
+
+  <div class="page">
+    <header class="site-head">
+      <div class="identity">
+        <span class="dot" aria-hidden="true"></span>
         <div>
-          <h1><?= appName ?></h1>
-          <p>Habit-blind frequency tracking · intervals are progress</p>
+          <p class="app"><?= appName ?></p>
+          <p class="tag">Habit-blind frequency tracking</p>
         </div>
       </div>
-      <div>
-        <button class="btn" id="settingsBtn" aria-haspopup="dialog">Settings</button>
-      </div>
+      <button class="quiet-btn" id="settingsBtn" aria-haspopup="dialog">Settings</button>
     </header>
 
-    <div id="alert" class="notice" hidden role="status"></div>
-    <p class="sub" id="keyState" role="status">Checking setup…</p>
-    <p class="sub" id="goalLine">Goal: …</p>
+    <div id="alert" class="banner" hidden role="status"></div>
 
-    <div class="hero">
-      <section class="card" aria-labelledby="logH">
-        <h2 id="logH">Log occurrence</h2>
-        <div class="logbox">
-          <label class="lbl" for="logInput">Tell me what happened…</label>
-          <input type="text" id="logInput" autocomplete="off" placeholder="For example: I did it today." aria-describedby="logHint" />
-          <span class="hint" id="logHint">Generic is enough. Never describe what the behavior is — only timing is stored.</span>
-          <div><button class="btn primary" id="logBtn">Log occurrence</button></div>
-          <div class="loading" id="loading" hidden><span class="pulse" aria-hidden="true"></span><span id="loadingLabel">Recording…</span></div>
+    <main>
+      <!-- Level 1 — current state / next target (dominant focal point, no card) -->
+      <section class="hero" aria-label="Current progress">
+        <p class="eyebrow" id="keyState" role="status">Checking setup…</p>
+        <p class="kicker">Next target</p>
+        <h1 class="target"><span id="mTarget">—</span></h1>
+        <p class="remain"><span id="mRemain">—</span><span id="targetDateWrap"><span class="sep"> · </span><span id="targetDateLine"></span></span></p>
+        <p class="current-line">Day <span id="mCurrent">—</span> since last occurrence<span id="trendLine"></span></p>
+        <p class="goal-line"><span id="goalLine">Goal: …</span><span class="goal-chip" id="mGoal">—</span></p>
+      </section>
+
+      <!-- Level 2 — primary logging action (single translucent dock, no giant card) -->
+      <section class="logdock" aria-label="Log an occurrence">
+        <label class="log-prompt" for="logInput">Tell me what happened…</label>
+        <div class="log-row">
+          <input type="text" id="logInput" autocomplete="off" placeholder="I did it today…" aria-describedby="logHint" />
+          <button class="primary-btn" id="logBtn">Log occurrence</button>
         </div>
+        <p class="micro" id="logHint">Generic is enough. Never describe what the behavior is — only timing is stored.</p>
+        <div class="loading" id="loading" hidden><span class="pulse" aria-hidden="true"></span><span id="loadingLabel">Recording…</span></div>
       </section>
-      <section class="card" aria-labelledby="insightH">
-        <h2 id="insightH">AI insight</h2>
-        <p id="aiInsight" style="margin:0">Loading…</p>
-        <p class="sub" id="aiMeta"></p>
-      </section>
-    </div>
 
-    <div class="grid cols4">
-      <section class="card" aria-label="Current interval"><h2>Current interval</h2><p class="metric" id="mCurrent">—</p><p class="sub">days since last occurrence</p></section>
-      <section class="card" aria-label="Next target"><h2>Next target</h2><p class="metric" id="mTarget">—</p><p class="sub">minimum days to aim for</p></section>
-      <section class="card" aria-label="Days remaining"><h2>Days remaining</h2><p class="metric" id="mRemain">—</p><p class="sub">until next target date</p></section>
-      <section class="card" aria-label="Goal"><h2>Goal</h2><p class="metric" id="mGoal" style="font-size:22px">—</p><p class="sub">long-term frequency target</p></section>
-    </div>
-
-    <div class="grid cols2" style="margin-top:14px">
-      <section class="card" aria-labelledby="histH">
-        <h2 id="histH">Recent history</h2>
-        <ul class="timeline" id="timeline"></ul>
-        <div class="row"><button class="btn small" id="undoBtn">Undo recent entry</button></div>
+      <!-- Contextual insight (not a dashboard panel) -->
+      <section class="insight-block" aria-label="Insight">
+        <h2>Insight</h2>
+        <p id="aiInsight" class="insight">Loading…</p>
+        <p class="micro faint" id="aiMeta"></p>
       </section>
-      <section class="card" aria-labelledby="statsH">
-        <h2 id="statsH">Progress statistics</h2>
-        <dl class="kv" id="statsKv"></dl>
-        <p class="hint">Longer intervals mean progress. An occurrence is data, not failure.</p>
-      </section>
-    </div>
 
-    <footer>This app intentionally does not need to know what habit you are tracking. It stores occurrence timing and frequency statistics.</footer>
+      <!-- Level 3 — history as timeline feed -->
+      <section class="block" aria-labelledby="histH">
+        <div class="section-head">
+          <h2 id="histH">Recent</h2>
+          <button class="quiet-btn small" id="undoBtn">Undo last</button>
+        </div>
+        <ul class="feed" id="timeline"></ul>
+      </section>
+
+      <!-- Level 4 — secondary statistics, compact rows -->
+      <section class="block" aria-labelledby="statsH">
+        <h2 id="statsH">Progress</h2>
+        <dl class="statlist" id="statsKv"></dl>
+        <p class="micro">Longer intervals mean progress. An occurrence is data, not failure.</p>
+      </section>
+    </main>
+
+    <footer>Private by design — this app never asks what the behavior is. It stores timing and frequency only.</footer>
   </div>
 
   <dialog id="keyModal" aria-labelledby="keyT">
-    <div class="modal-body">
+    <div class="sheet">
       <h3 id="keyT">Connect Gemini</h3>
-      <p class="sub">Enter your Gemini API key. It is stored securely server-side and never shown again.</p>
-      <label class="lbl" for="keyInput">Gemini API key</label>
+      <p class="micro">Enter your Gemini API key. It is stored securely server-side and never shown again.</p>
+      <label class="fld" for="keyInput">Gemini API key</label>
       <input type="password" id="keyInput" autocomplete="off" placeholder="Paste key…" />
-      <p class="sub" id="keyMsg" role="status"></p>
-      <div class="row end"><button class="btn primary" id="saveKeyBtn">Save API Key</button></div>
+      <p class="micro" id="keyMsg" role="status"></p>
+      <div class="row end"><button class="primary-btn" id="saveKeyBtn">Save API key</button></div>
     </div>
   </dialog>
 
   <dialog id="goalModal" aria-labelledby="goalT">
-    <div class="modal-body">
+    <div class="sheet">
       <h3 id="goalT">Set your target</h3>
-      <p class="sub">How frequent should the behavior be allowed to occur? This is a personal behavioral target, not a medical recommendation.</p>
+      <p class="micro">How often should the behavior be allowed to occur? A personal target, not a medical recommendation.</p>
       <div class="seg" role="group" aria-label="Goal mode">
-        <button type="button" disabled style="display:none"></button>
-        <label style="flex:1"><input type="radio" name="goalMode" value="REDUCE_FREQUENCY" checked class="sr" /><span class="pill" style="display:flex;justify-content:center">Reduce frequency</span></label>
-        <label style="flex:1"><input type="radio" name="goalMode" value="STOP" class="sr" /><span class="pill" style="display:flex;justify-content:center">Stop completely</span></label>
+        <label><input type="radio" name="goalMode" value="REDUCE_FREQUENCY" checked class="sr" /><span class="seg-opt">Reduce frequency</span></label>
+        <label><input type="radio" name="goalMode" value="STOP" class="sr" /><span class="seg-opt">Stop completely</span></label>
       </div>
       <div id="freqRow" class="row">
-        <div style="flex:1;min-width:140px"><label class="lbl" for="freqCount">Times</label><input type="number" id="freqCount" value="2" min="1" max="100" /></div>
-        <div style="flex:1;min-width:140px"><label class="lbl" for="freqPeriod">Per days</label><input type="number" id="freqPeriod" value="7" min="1" max="365" /></div>
+        <div class="fld-wrap"><label class="fld" for="freqCount">Times</label><input type="number" id="freqCount" value="2" min="1" max="100" /></div>
+        <div class="fld-wrap"><label class="fld" for="freqPeriod">Per days</label><input type="number" id="freqPeriod" value="7" min="1" max="365" /></div>
       </div>
-      <p class="sub" id="goalMsg" role="status"></p>
-      <div class="row end"><button class="btn primary" id="saveGoalBtn">Save goal</button></div>
+      <p class="micro" id="goalMsg" role="status"></p>
+      <div class="row end"><button class="primary-btn" id="saveGoalBtn">Save goal</button></div>
     </div>
   </dialog>
 
   <dialog id="settingsModal" aria-labelledby="setT">
-    <div class="modal-body">
+    <div class="sheet">
       <h3 id="setT">Settings</h3>
-      <h2 style="margin-top:14px">Goal</h2>
+      <h4>Goal</h4>
       <div class="seg" role="group" aria-label="Goal mode setting">
-        <label style="flex:1"><input type="radio" name="sGoalMode" value="REDUCE_FREQUENCY" checked class="sr" /><span class="pill" style="display:flex;justify-content:center">Reduce</span></label>
-        <label style="flex:1"><input type="radio" name="sGoalMode" value="STOP" class="sr" /><span class="pill" style="display:flex;justify-content:center">Stop</span></label>
+        <label><input type="radio" name="sGoalMode" value="REDUCE_FREQUENCY" checked class="sr" /><span class="seg-opt">Reduce</span></label>
+        <label><input type="radio" name="sGoalMode" value="STOP" class="sr" /><span class="seg-opt">Stop</span></label>
       </div>
       <div class="row">
-        <div style="flex:1;min-width:120px"><label class="lbl" for="sFreqCount">Times</label><input type="number" id="sFreqCount" value="2" min="1" max="100" /></div>
-        <div style="flex:1;min-width:120px"><label class="lbl" for="sFreqPeriod">Per days</label><input type="number" id="sFreqPeriod" value="7" min="1" max="365" /></div>
+        <div class="fld-wrap"><label class="fld" for="sFreqCount">Times</label><input type="number" id="sFreqCount" value="2" min="1" max="100" /></div>
+        <div class="fld-wrap"><label class="fld" for="sFreqPeriod">Per days</label><input type="number" id="sFreqPeriod" value="7" min="1" max="365" /></div>
       </div>
-      <div class="row"><button class="btn small" id="saveSettingsGoalBtn">Save goal</button></div>
-      <h2 style="margin-top:16px">Edit API key</h2>
-      <label class="lbl" for="settingsKeyInput">New Gemini API key</label>
+      <div class="row"><button class="quiet-btn small" id="saveSettingsGoalBtn">Save goal</button></div>
+      <hr class="divider" />
+      <h4>Gemini API</h4>
+      <label class="fld" for="settingsKeyInput">New API key</label>
       <input type="password" id="settingsKeyInput" placeholder="Paste new key to replace" />
-      <div class="row"><button class="btn small" id="saveSettingsKeyBtn">Replace API key</button></div>
-      <h2 style="margin-top:16px">Application information</h2>
-      <p class="sub">This app intentionally does not need to know what habit you are tracking. It stores occurrence timing and frequency statistics.</p>
-      <p class="sub" id="settingsMsg" role="status"></p>
-      <div class="row end"><button class="btn" onclick="document.getElementById('settingsModal').close()">Close</button></div>
+      <div class="row"><button class="quiet-btn small" id="saveSettingsKeyBtn">Replace API key</button></div>
+      <hr class="divider" />
+      <h4>Privacy</h4>
+      <p class="micro">Habit-blind: no names, categories, or descriptions are ever requested or stored. Only timing and counts.</p>
+      <p class="micro" id="settingsMsg" role="status"></p>
+      <div class="row end"><button class="quiet-btn" onclick="document.getElementById('settingsModal').close()">Close</button></div>
     </div>
   </dialog>
 
