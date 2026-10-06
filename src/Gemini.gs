@@ -23,7 +23,12 @@ var NORMALIZE_SYSTEM_PROMPT = [
   '- Never identify or ask about the behavior.',
   '- If the text mentions what the behavior is, IGNORE that text: do not repeat it, do not store it.',
   '- occurrenceCount: default 1. Detect words: once=1, twice=2, three times=3, "x2"=2, digits.',
-  '- eventDate: "today" means the provided today date; "yesterday" means today minus 1; explicit YYYY-MM-DD if present and valid; otherwise today.',
+  '- eventDate priority, in order:',
+  '  1. Explicit absolute date in the input (authoritative when present). Recognize YYYY-MM-DD and natural-language forms such as September 30th 2026, September 30, 2026, Sep 30 2026, 30 September 2026, 30/09/2026, 30-09-2026. Convert to YYYY-MM-DD with calendar validation.',
+  '  2. Explicit relative date: "today" means the provided today date; "yesterday" means today minus 1.',
+  '  3. If the date is genuinely ambiguous or no usable date exists, use today.',
+  '- Never replace an explicit historical date with today. Historical dates are valid.',
+  '- If an explicit date is present but is not a valid calendar date (e.g. September 31st), do not silently substitute today; return the raw text in eventDate so the backend can reject it, or set confidence low.',
   '- If input is ambiguous about whether an occurrence happened, set occurred=false and confidence low.',
   '- Do not invent facts. Be conservative.',
   'Return JSON: {"occurred": true, "occurrenceCount": 1, "eventDate": "YYYY-MM-DD", "confidence": 0.95}'
@@ -157,12 +162,31 @@ function deterministicNormalize_(inputText, todayStr) {
   else if (/\bonce\b/.test(lower)) count = 1;
   if (!isFinite(count) || count < 1) count = 1;
   if (count > 50) count = 50;
-  var eventDate = todayStr;
-  var dm = text.match(/(\d{4}-\d{2}-\d{2})/);
-  if (dm && isValidDateString_(dm[1])) eventDate = dm[1];
-  else if (/\byesterday\b/.test(lower)) eventDate = addDaysToDateString_(todayStr, -1);
+
+  // Priority 1: explicit absolute date (authoritative, never overwritten by AI/today).
+  var explicit = extractExplicitDate_(text);
+  if (explicit && explicit.date) {
+    return { occurred: true, occurrenceCount: count, eventDate: explicit.date, confidence: 0.97, method: 'deterministic-explicit' };
+  }
+  if (explicit && explicit.invalid) {
+    return { occurred: true, occurrenceCount: count, eventDate: null, confidence: 0.2, method: 'deterministic-invalid-date', invalidDate: true, invalidRaw: explicit.raw };
+  }
+
+  // Priority 2: explicit relative dates.
+  var eventDate = null;
+  var hasRelative = false;
+  if (/\byesterday\b/.test(lower)) {
+    eventDate = addDaysToDateString_(todayStr, -1);
+    hasRelative = true;
+  } else if (/\btoday\b/.test(lower)) {
+    eventDate = todayStr;
+    hasRelative = true;
+  } else {
+    eventDate = todayStr;
+  }
   // Simple generic patterns handled deterministically with high confidence.
-  if (/i did it|did it today|did it again|i slipped|occurrence|logged/i.test(text) || /\btoday\b/.test(lower) || /\byesterday\b/.test(lower) || dm) {
+  // Explicit-relative inputs are deterministic even without the generic phrase gate.
+  if (hasRelative || /i did it|did it again|i slipped|occurrence|logged/i.test(text)) {
     return { occurred: true, occurrenceCount: count, eventDate: eventDate, confidence: 0.92, method: 'deterministic' };
   }
   return null;
@@ -170,15 +194,33 @@ function deterministicNormalize_(inputText, todayStr) {
 
 function normalizeOccurrence_(inputText, todayStr) {
   var det = deterministicNormalize_(inputText, todayStr);
-  if (det) return det;
-  // AI Step A for ambiguous input.
+  if (det) {
+    // Invalid explicit date must never silently become today.
+    if (det.invalidDate) return det;
+    // Authoritative deterministic date (explicit or relative): return without AI.
+    return det;
+  }
+  // AI Step A for genuinely ambiguous input only.
   var res = callGeminiWithFallback_(NORMALIZE_SYSTEM_PROMPT, { input: String(inputText || '').slice(0, 500), today: todayStr });
   if (!res.ok) return { occurred: true, occurrenceCount: 1, eventDate: todayStr, confidence: 0.5, method: 'fallback-no-ai', aiError: res.errorClass };
   var d = res.data || {};
   var occurred = d.occurred !== false;
   var count = toPositiveIntOrNull_(d.occurrenceCount);
   if (count === null) count = occurred ? 1 : 0;
-  var eventDate = isValidDateString_(d.eventDate) ? d.eventDate : todayStr;
+  // Safety: re-check input for an explicit date the AI may have missed.
+  // Deterministic extraction wins over AI output.
+  var recheck = extractExplicitDate_(String(inputText || ''));
+  var eventDate;
+  if (recheck && recheck.date) {
+    eventDate = recheck.date;
+  } else if (recheck && recheck.invalid) {
+    return { occurred: occurred, occurrenceCount: count, eventDate: null, confidence: 0.2, method: 'ai-invalid-date', invalidDate: true, invalidRaw: recheck.raw, model: res.model };
+  } else if (isValidDateString_(d.eventDate)) {
+    eventDate = d.eventDate;
+  } else {
+    // AI returned no usable date and input has no explicit date: today is the documented fallback.
+    eventDate = todayStr;
+  }
   var conf = Number(d.confidence);
   if (!isFinite(conf) || conf < 0 || conf > 1) conf = 0.6;
   // Strip any habit-identifying echo: never persist raw input.

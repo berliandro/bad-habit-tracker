@@ -22,11 +22,23 @@ function getRecentEvents_(limit) {
   return { rows: rows, events: events };
 }
 
+function findPredecessorDate_(sortedEvents, newEventDate) {
+  var pred = null;
+  for (var i = 0; i < sortedEvents.length; i++) {
+    var d = sortedEvents[i].eventDate;
+    if (d <= newEventDate && (pred === null || d > pred)) pred = d;
+  }
+  return pred;
+}
+
 function logOccurrence(naturalInput, eventDateOverride) {
   try {
     var input = String(naturalInput || '').slice(0, 500);
     var todayStr = todayDateString_();
     var normalized = normalizeOccurrence_(input, todayStr);
+    if (normalized && normalized.invalidDate) {
+      return errResponse_('INVALID_DATE', 'The stated date "' + String(normalized.invalidRaw || '').slice(0, 60) + '" is not a valid calendar date. Nothing was saved.');
+    }
     if (eventDateOverride && isValidDateString_(String(eventDateOverride))) {
       normalized.eventDate = String(eventDateOverride);
     }
@@ -46,9 +58,11 @@ function logOccurrence(naturalInput, eventDateOverride) {
       goal = { goalMode: GOAL_MODE_REDUCE, targetOccurrences: 2, targetPeriodDays: 7 };
     }
 
-    var prevDate = events.length ? events[events.length - 1].eventDate : null;
+    var prevDate = findPredecessorDate_(events, normalized.eventDate);
     var interval = prevDate ? diffDaysBetween_(prevDate, normalized.eventDate) : null;
-    // Out-of-order log: interval may be negative; clamp to 0 and keep history sorted later.
+    // Out-of-order log: predecessor search keeps historical inserts correct.
+    // Stored intervals for later successor rows may stay stale, but metrics recompute
+    // chronologically from sorted dates, so dashboard/history remain correct.
     if (interval !== null && interval < 0) interval = 0;
 
     var lastFinalTarget = null;
